@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Controle Financeiro</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body { background-color: #0b1329; color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; }
+    .card { background-color: #131f37; border: 1px solid #1e293b; }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+
+  <!-- CABEÇALHO -->
+  <header class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4 mb-8">
+    <div class="flex items-center gap-3">
+      <div class="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20">
+        <i class="fa-solid fa-wallet text-2xl"></i>
+      </div>
+      <div>
+        <h1 class="text-2xl font-bold text-slate-100">Controle Financeiro</h1>
+        <p class="text-sm text-slate-400">Seu Controle Financeiro Simples e Eficiente</p>
+      </div>
+    </div>
+
+    <div class="flex flex-wrap gap-2">
+      <button onclick="abrirModalImportar()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm rounded-lg flex items-center gap-2 transition cursor-pointer">
+        <i class="fa-solid fa-file-import"></i> Importar Banco (OFX/CSV/PDF)
+      </button>
+      <button onclick="abrirModalNovaTransacao()" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm rounded-lg flex items-center gap-2 transition cursor-pointer">
+        <i class="fa-solid fa-plus"></i> Nova Transação
+      </button>
+      <button onclick="exportarCSV()" title="Exportar CSV" class="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 cursor-pointer">
+        <i class="fa-solid fa-file-csv"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- PRINCIPAL -->
+  <main class="max-w-7xl mx-auto space-y-6">
+
+    <!-- FILTRO PERÍODO -->
+    <div class="card p-4 rounded-xl flex items-center justify-between gap-4">
+      <div class="flex items-center gap-2">
+        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Período:</span>
+        <div class="flex bg-slate-900/80 p-1 rounded-lg border border-slate-800">
+          <button onclick="mudarPeriodo('hoje')" id="btn-hoje" class="px-3 py-1.5 text-xs font-medium rounded-md text-slate-400 hover:text-white transition cursor-pointer">Hoje</button>
+          <button onclick="mudarPeriodo('semana')" id="btn-semana" class="px-3 py-1.5 text-xs font-medium rounded-md text-slate-400 hover:text-white transition cursor-pointer">Esta Semana</button>
+          <button onclick="mudarPeriodo('mes')" id="btn-mes" class="px-3 py-1.5 text-xs font-bold rounded-md bg-emerald-500 text-slate-950 transition cursor-pointer">Este Mês</button>
+          <button onclick="mudarPeriodo('geral')" id="btn-geral" class="px-3 py-1.5 text-xs font-medium rounded-md text-slate-400 hover:text-white transition cursor-pointer">Geral</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- RESUMO DE SALDOS -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="card p-5 rounded-xl border-l-4 border-l-emerald-500">
+        <p class="text-xs font-bold text-slate-400 uppercase">Total Entradas</p>
+        <h2 id="total-entradas" class="text-2xl font-bold text-emerald-400 mt-1">R$ 0,00</h2>
+      </div>
+      <div class="card p-5 rounded-xl border-l-4 border-l-rose-500">
+        <p class="text-xs font-bold text-slate-400 uppercase">Total Saídas</p>
+        <h2 id="total-saidas" class="text-2xl font-bold text-rose-400 mt-1">R$ 0,00</h2>
+      </div>
+      <div class="card p-5 rounded-xl border-l-4 border-l-blue-500">
+        <p class="text-xs font-bold text-slate-400 uppercase">Saldo no Período</p>
+        <h2 id="total-saldo" class="text-2xl font-bold text-slate-100 mt-1">R$ 0,00</h2>
+      </div>
+    </div>
+
+    <!-- GRÁFICOS -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div class="card p-5 rounded-xl">
+        <h3 class="text-sm font-bold text-slate-200 mb-4"><i class="fa-solid fa-chart-column text-emerald-400 mr-2"></i>Comparativo: Entradas vs Saídas</h3>
+        <div class="h-64"><canvas id="barChart"></canvas></div>
+      </div>
+      <div class="card p-5 rounded-xl">
+        <h3 class="text-sm font-bold text-slate-200 mb-4"><i class="fa-solid fa-chart-pie text-blue-400 mr-2"></i>Despesas por Categoria</h3>
+        <div class="h-64"><canvas id="pieChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- EXTRATO -->
+    <div class="card p-6 rounded-xl space-y-4">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h3 class="text-lg font-bold text-slate-100">Extrato de Transações</h3>
+          <p class="text-xs text-slate-400">Acompanhamento detalhado do seu dinheiro</p>
+        </div>
+
+        <!-- BOTOES DE FILTRO DE TIPO (TODAS / ENTRADAS / SAÍDAS) -->
+        <div class="flex items-center gap-2">
+          <div class="flex bg-slate-900/80 p-1 rounded-lg border border-slate-800">
+            <button onclick="mudarTipoFiltro('todas')" id="btn-tipo-todas" class="px-3 py-1.5 text-xs font-bold rounded-md bg-slate-700 text-white transition cursor-pointer">Todas</button>
+            <button onclick="mudarTipoFiltro('receita')" id="btn-tipo-receita" class="px-3 py-1.5 text-xs font-medium rounded-md text-emerald-400 hover:bg-emerald-500/10 transition cursor-pointer"><i class="fa-solid fa-arrow-down mr-1"></i>Entradas</button>
+            <button onclick="mudarTipoFiltro('despesa')" id="btn-tipo-despesa" class="px-3 py-1.5 text-xs font-medium rounded-md text-rose-400 hover:bg-rose-500/10 transition cursor-pointer"><i class="fa-solid fa-arrow-up mr-1"></i>Saídas</button>
+          </div>
+          
+          <button onclick="abrirModalImportar()" class="px-3 py-1.5 bg-blue-600/20 text-blue-400 border border-blue-500/30 hover:bg-blue-600/30 text-xs font-semibold rounded-lg flex items-center gap-2 cursor-pointer">
+            <i class="fa-solid fa-file-import"></i> Importar Extrato
+          </button>
+        </div>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="border-b border-slate-700 text-xs text-slate-400 uppercase">
+              <th class="py-3 px-4">Data</th>
+              <th class="py-3 px-4">Descrição</th>
+              <th class="py-3 px-4">Categoria</th>
+              <th class="py-3 px-4 text-right">Valor</th>
+              <th class="py-3 px-4 text-center">Ações</th>
+            </tr>
+          </thead>
+          <tbody id="tabela-transacoes" class="divide-y divide-slate-800 text-sm">
+            <!-- Linhas dinâmicas -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- MODAL IMPORTAR BANCO -->
+  <div id="modal-importar" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+    <div class="card max-w-lg w-full p-6 rounded-2xl shadow-xl space-y-4">
+      <div class="flex justify-between items-center">
+        <h3 class="text-lg font-bold text-slate-100"><i class="fa-solid fa-file-import text-blue-400 mr-2"></i>Importar Extrato Bancário</h3>
+        <button onclick="fecharModalImportar()" class="text-slate-400 hover:text-slate-200 cursor-pointer"><i class="fa-solid fa-xmark text-xl"></i></button>
+      </div>
+      <p class="text-xs text-slate-400">Selecione o ficheiro <b>.OFX</b>, <b>.CSV</b> ou <b>.PDF</b> exportado do aplicativo do seu banco.</p>
+      
+      <div class="space-y-3">
+        <input type="file" id="input-arquivo-banco" accept=".ofx,.csv,.pdf" class="w-full text-sm text-slate-300 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-blue-600 file:text-white file:font-semibold hover:file:bg-blue-500 cursor-pointer bg-slate-900 p-2 rounded-lg border border-slate-700">
+
+        <div>
+          <label class="text-xs text-slate-400">Palavra-passe do PDF (caso seja diferente da senha padrão):</label>
+          <input type="password" id="senha-pdf" placeholder="Senha do PDF (opcional)" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-slate-100 mt-1 focus:outline-none focus:border-blue-500">
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-2">
+        <button onclick="fecharModalImportar()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm cursor-pointer">Cancelar</button>
+        <button onclick="enviarArquivoServidor()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-semibold cursor-pointer">Processar no Python</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL NOVA TRANSAÇÃO -->
+  <div id="modal-transacao" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+    <div class="card max-w-md w-full p-6 rounded-2xl space-y-4">
+      <div class="flex justify-between items-center">
+        <h3 class="text-lg font-bold text-slate-100">Nova Transação Manual</h3>
+        <button onclick="fecharModalNovaTransacao()" class="text-slate-400 hover:text-slate-200 cursor-pointer"><i class="fa-solid fa-xmark text-xl"></i></button>
+      </div>
+      <form id="form-transacao" onsubmit="salvarTransacaoManual(event)" class="space-y-3">
+        <div>
+          <label class="text-xs font-semibold text-slate-400 uppercase">Descrição</label>
+          <input type="text" id="desc" required placeholder="Ex: Supermercado, Salário" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-slate-100 mt-1 focus:outline-none focus:border-emerald-500">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs font-semibold text-slate-400 uppercase">Valor (R$)</label>
+            <input type="number" step="0.01" id="valor" required placeholder="0,00" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-slate-100 mt-1 focus:outline-none focus:border-emerald-500">
+          </div>
+          <div>
+            <label class="text-xs font-semibold text-slate-400 uppercase">Tipo</label>
+            <select id="tipo" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-slate-100 mt-1 focus:outline-none focus:border-emerald-500">
+              <option value="receita">Entrada (+)</option>
+              <option value="despesa">Saída (-)</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs font-semibold text-slate-400 uppercase">Categoria</label>
+            <select id="categoria" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-slate-100 mt-1 focus:outline-none focus:border-emerald-500">
+              <option value="Alimentação">Alimentação</option>
+              <option value="Transporte">Transporte</option>
+              <option value="Moradia">Moradia</option>
+              <option value="Lazer">Lazer</option>
+              <option value="Saúde">Saúde</option>
+              <option value="Contas">Contas</option>
+              <option value="Cartão de Crédito">Cartão de Crédito</option>
+              <option value="Outros">Outros</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs font-semibold text-slate-400 uppercase">Data</label>
+            <input type="date" id="data" required class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-slate-100 mt-1 focus:outline-none focus:border-emerald-500">
+          </div>
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="fecharModalNovaTransacao()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm cursor-pointer">Cancelar</button>
+          <button type="submit" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-lg text-sm cursor-pointer">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    let transacoes = JSON.parse(localStorage.getItem('controle_financeiro_v1')) || [];
+    let periodoSelecionado = 'mes';
+    let tipoFiltroSelecionado = 'todas';
+    let barChart = null;
+    let pieChart = null;
+
+    // Lista atualizada das categorias disponíveis
+    const categoriasDisponiveis = [
+      "Alimentação", 
+      "Transporte", 
+      "Moradia", 
+      "Lazer", 
+      "Saúde", 
+      "Contas",
+      "Cartão de Crédito",
+      "Outros"
+    ];
+
+    document.getElementById('data').valueAsDate = new Date();
+
+    function abrirModalImportar() { 
+      const m = document.getElementById('modal-importar'); 
+      m.classList.remove('hidden'); 
+      m.classList.add('flex'); 
+    }
+    function fecharModalImportar() { 
+      const m = document.getElementById('modal-importar'); 
+      m.classList.add('hidden'); 
+      m.classList.remove('flex'); 
+    }
+
+    function abrirModalNovaTransacao() { 
+      const m = document.getElementById('modal-transacao'); 
+      m.classList.remove('hidden'); 
+      m.classList.add('flex'); 
+    }
+    function fecharModalNovaTransacao() { 
+      const m = document.getElementById('modal-transacao'); 
+      m.classList.add('hidden'); 
+      m.classList.remove('flex'); 
+    }
+
+    function mudarPeriodo(p) {
+      periodoSelecionado = p;
+
+      ['hoje', 'semana', 'mes', 'geral'].forEach(id => {
+        const btn = document.getElementById(`btn-${id}`);
+        if (id === p) {
+          btn.className = "px-3 py-1.5 text-xs font-bold rounded-md bg-emerald-500 text-slate-950 transition cursor-pointer";
+        } else {
+          btn.className = "px-3 py-1.5 text-xs font-medium rounded-md text-slate-400 hover:text-white transition cursor-pointer";
+        }
+      });
+
+      atualizarTela();
+    }
+
+    function mudarTipoFiltro(tipo) {
+      tipoFiltroSelecionado = tipo;
+
+      const btnTodas = document.getElementById('btn-tipo-todas');
+      const btnReceita = document.getElementById('btn-tipo-receita');
+      const btnDespesa = document.getElementById('btn-tipo-despesa');
+
+      btnTodas.className = "px-3 py-1.5 text-xs font-medium rounded-md text-slate-400 hover:bg-slate-800 transition cursor-pointer";
+      btnReceita.className = "px-3 py-1.5 text-xs font-medium rounded-md text-emerald-400 hover:bg-emerald-500/10 transition cursor-pointer";
+      btnDespesa.className = "px-3 py-1.5 text-xs font-medium rounded-md text-rose-400 hover:bg-rose-500/10 transition cursor-pointer";
+
+      if (tipo === 'todas') {
+        btnTodas.className = "px-3 py-1.5 text-xs font-bold rounded-md bg-slate-700 text-white transition cursor-pointer";
+      } else if (tipo === 'receita') {
+        btnReceita.className = "px-3 py-1.5 text-xs font-bold rounded-md bg-emerald-500 text-slate-950 transition cursor-pointer";
+      } else if (tipo === 'despesa') {
+        btnDespesa.className = "px-3 py-1.5 text-xs font-bold rounded-md bg-rose-500 text-white transition cursor-pointer";
+      }
+
+      atualizarTela();
+    }
+
+    function alterarCategoriaTransacao(id, novaCategoria) {
+      const idx = transacoes.findIndex(t => t.id === id);
+      if (idx !== -1) {
+        transacoes[idx].categoria = novaCategoria;
+        salvarEDesenhar();
+      }
+    }
+
+    function parseDataBRouISO(strData) {
+      if (!strData) return new Date();
+      if (strData.includes('/')) {
+        const parts = strData.split('/');
+        const dia = parseInt(parts[0], 10);
+        const mes = parseInt(parts[1], 10) - 1;
+        const ano = parts[2] ? (parts[2].length === 2 ? 2000 + parseInt(parts[2], 10) : parseInt(parts[2], 10)) : new Date().getFullYear();
+        return new Date(ano, mes, dia);
+      }
+      return new Date(strData + 'T00:00:00');
+    }
+
+    function filtrarPorPeriodo(lista) {
+      const hoje = new Date();
+      hoje.setHours(0,0,0,0);
+
+      return lista.filter(t => {
+        const d = parseDataBRouISO(t.data);
+        d.setHours(0,0,0,0);
+
+        if (periodoSelecionado === 'hoje') {
+          return d.getTime() === hoje.getTime();
+        } 
+        else if (periodoSelecionado === 'semana') {
+          const primeiroDiaSemana = new Date(hoje);
+          primeiroDiaSemana.setDate(hoje.getDate() - hoje.getDay());
+          const ultimoDiaSemana = new Date(primeiroDiaSemana);
+          ultimoDiaSemana.setDate(primeiroDiaSemana.getDate() + 6);
+          return d >= primeiroDiaSemana && d <= ultimoDiaSemana;
+        } 
+        else if (periodoSelecionado === 'mes') {
+          return d.getMonth() === hoje.getMonth() && d.getFullYear() === hoje.getFullYear();
+        }
+        return true;
+      });
+    }
+
+    async function enviarArquivoServidor() {
+      const input = document.getElementById('input-arquivo-banco');
+      const senhaInput = document.getElementById('senha-pdf');
+      if (!input.files.length) return alert('Selecione um ficheiro bancário .OFX, .CSV ou .PDF');
+
+      const formData = new FormData();
+      formData.append("file", input.files[0]);
+      if (senhaInput && senhaInput.value) {
+        formData.append("senha", senhaInput.value);
+      }
+
+      try {
+        const res = await fetch("/importar-banco", { method: "POST", body: formData });
+        const data = await res.json();
+
+        if (data.sucesso) {
+          if (!data.transacoes || data.transacoes.length === 0) {
+            alert("Aviso: O ficheiro foi lido, mas nenhuma transação foi encontrada.");
+          } else {
+            data.transacoes.forEach(t => {
+              transacoes.push({
+                id: Date.now() + Math.random(),
+                descricao: t.descricao,
+                valor: t.valor,
+                tipo: t.tipo,
+                categoria: t.categoria || 'Outros',
+                data: t.data
+              });
+            });
+            salvarEDesenhar();
+            fecharModalImportar();
+            if (senhaInput) senhaInput.value = '';
+            alert(`${data.transacoes.length} transações importadas com sucesso!`);
+          }
+        } else {
+          alert(`Erro: ${data.mensagem}`);
+        }
+      } catch (err) {
+        alert("Erro na ligação ao servidor Python. Verifique o terminal.");
+      }
+    }
+
+    function salvarTransacaoManual(e) {
+      e.preventDefault();
+      const desc = document.getElementById('desc').value;
+      const valor = parseFloat(document.getElementById('valor').value);
+      const tipo = document.getElementById('tipo').value;
+      const categoria = document.getElementById('categoria').value;
+      const data = document.getElementById('data').value;
+
+      transacoes.push({ id: Date.now(), descricao: desc, valor, tipo, categoria, data });
+      salvarEDesenhar();
+      fecharModalNovaTransacao();
+      document.getElementById('form-transacao').reset();
+      document.getElementById('data').valueAsDate = new Date();
+    }
+
+    function deletarTransacao(id) {
+      transacoes = transacoes.filter(t => t.id !== id);
+      salvarEDesenhar();
+    }
+
+    function salvarEDesenhar() {
+      localStorage.setItem('controle_financeiro_v1', JSON.stringify(transacoes));
+      atualizarTela();
+    }
+
+    function atualizarTela() {
+      const tabela = document.getElementById('tabela-transacoes');
+      tabela.innerHTML = '';
+      let entradas = 0, saidas = 0;
+      let categoriasSaida = {};
+
+      const transacoesDoPeriodo = filtrarPorPeriodo(transacoes);
+
+      transacoesDoPeriodo.forEach(t => {
+        if (t.tipo === 'receita') {
+          entradas += t.valor;
+        } else {
+          saidas += t.valor;
+          categoriasSaida[t.categoria] = (categoriasSaida[t.categoria] || 0) + t.valor;
+        }
+      });
+
+      const transacoesExibidas = transacoesDoPeriodo.filter(t => {
+        if (tipoFiltroSelecionado === 'receita') return t.tipo === 'receita';
+        if (tipoFiltroSelecionado === 'despesa') return t.tipo === 'despesa';
+        return true;
+      });
+
+      transacoesExibidas.forEach(t => {
+        let opcoesCategorias = categoriasDisponiveis.map(cat => {
+          return `<option value="${cat}" ${t.categoria === cat ? 'selected' : ''}>${cat}</option>`;
+        }).join('');
+
+        tabela.innerHTML += `
+          <tr class="border-b border-slate-800 hover:bg-slate-800/50">
+            <td class="py-3 px-4 text-slate-400">${t.data}</td>
+            <td class="py-3 px-4 font-medium text-slate-100">${t.descricao}</td>
+            <td class="py-3 px-4">
+              <select onchange="alterarCategoriaTransacao(${t.id}, this.value)" class="bg-[#0b1329] text-xs font-semibold text-slate-200 border border-emerald-500/80 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-400 cursor-pointer shadow-sm">
+                ${opcoesCategorias}
+              </select>
+            </td>
+            <td class="py-3 px-4 text-right font-bold ${t.tipo === 'receita' ? 'text-emerald-400' : 'text-rose-400'}">
+              ${t.tipo === 'receita' ? '+' : '-'} R$ ${t.valor.toFixed(2)}
+            </td>
+            <td class="py-3 px-4 text-center">
+              <button onclick="deletarTransacao(${t.id})" class="text-rose-400 hover:text-rose-300 cursor-pointer"><i class="fa-solid fa-trash"></i></button>
+            </td>
+          </tr>
+        `;
+      });
+
+      document.getElementById('total-entradas').innerText = `R$ ${entradas.toFixed(2)}`;
+      document.getElementById('total-saidas').innerText = `R$ ${saidas.toFixed(2)}`;
+      document.getElementById('total-saldo').innerText = `R$ ${(entradas - saidas).toFixed(2)}`;
+
+      renderizarGraficos(entradas, saidas, categoriasSaida);
+    }
+
+    function renderizarGraficos(entradas, saidas, categorias) {
+      if (barChart) barChart.destroy();
+      if (pieChart) pieChart.destroy();
+
+      const ctxBar = document.getElementById('barChart').getContext('2d');
+      barChart = new Chart(ctxBar, {
+        type: 'bar',
+        data: {
+          labels: ['Entradas', 'Saídas'],
+          datasets: [{
+            data: [entradas, saidas],
+            backgroundColor: ['#10b981', '#ef4444'],
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: '#94a3b8' }, grid: { display: false } },
+            y: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } }
+          }
+        }
+      });
+
+      const ctxPie = document.getElementById('pieChart').getContext('2d');
+      const labels = Object.keys(categorias);
+      const dataVals = Object.values(categorias);
+
+      pieChart = new Chart(ctxPie, {
+        type: 'doughnut',
+        data: {
+          labels: labels.length ? labels : ['Sem dados'],
+          datasets: [{
+            data: dataVals.length ? dataVals : [1],
+            backgroundColor: labels.length ? ['#f59e0b', '#3b82f6', '#10b981', '#8b5cf6', '#ec4899', '#6366f1', '#06b6d4', '#14b8a6'] : ['#334155']
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { labels: { color: '#94a3b8' } }
+          }
+        }
+      });
+    }
+
+    function exportarCSV() {
+      const transacoesFiltradas = filtrarPorPeriodo(transacoes).filter(t => {
+        if (tipoFiltroSelecionado === 'receita') return t.tipo === 'receita';
+        if (tipoFiltroSelecionado === 'despesa') return t.tipo === 'despesa';
+        return true;
+      });
+
+      if (!transacoesFiltradas.length) return alert('Sem transações para exportar.');
+      let csv = 'Data,Descrição,Categoria,Tipo,Valor\n';
+      transacoesFiltradas.forEach(t => {
+        csv += `${t.data},"${t.descricao}",${t.categoria},${t.tipo},${t.valor}\n`;
+      });
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `controle_financeiro_${periodoSelecionado}_${tipoFiltroSelecionado}.csv`;
+      a.click();
+    }
+
+    atualizarTela();
+  </script>
+</body>
+</html>
